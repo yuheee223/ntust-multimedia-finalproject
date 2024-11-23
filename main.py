@@ -268,8 +268,9 @@ class ImageProcessor:
         right_y = int(right_eye_center.y * H)
 
         # 水滴的寬度和高度
-        width = 10  # 水滴的寬度
-        height = 40  # 水滴的高度
+        left_eye_width = abs(right_x - left_x)
+        width = int(left_eye_width * 0.1) 
+        height = int(left_eye_width * 0.3) 
 
         # 1. 畫出三角形（頂部為水滴的尖端）
         triangle_points = np.array([[
@@ -381,7 +382,7 @@ class ImageProcessor:
                         (top_x, top_y - 40),  # 半圓的中心（頂部稍微向上偏移）
                         (radius, radius),         # 半徑
                         yaw_angle+90,                 # 旋轉角度
-                        angle_start,               # 起始角度
+                        angle_start,               # 起始角度 
                         angle_end,                 # 結束角度
                         color,                     # 顏色
                         -1)                        # 填充顏色
@@ -391,6 +392,127 @@ class ImageProcessor:
         # return final_image_with_rainbow
 
         return image
+    
+     
+    """ Angry 怒氣特效"""
+    @staticmethod
+    def add_angry_effect(image, face_landmarks):
+        H, W, _ = image.shape
+
+        # 取右側頭部上方的參考點，例如右耳位置（第234個特徵點）
+        right_head_point = face_landmarks.landmark[234]  # 右耳附近的一個特徵點
+        x = int(right_head_point.x * W)
+        y = int(right_head_point.y * H)
+
+        # 在右耳上方顯示怒氣符號，調整座標以移動到頭部上方
+        symbol_x = x - 20  # 向左偏移
+        symbol_y = y - 50  # 向上偏移
+
+        
+        # 計算鼻尖與頭頂的相對座標
+        top_x = int(face_landmarks.landmark[10].x * W)
+        top_y = int(face_landmarks.landmark[10].y * H)
+        nose_x = int(face_landmarks.landmark[1].x * W)  
+        nose_y = int(face_landmarks.landmark[1].y * H)
+
+        # 偏航角（Yaw）計算（假設已經有這些變數）
+        delta_y = top_y - nose_y
+        delta_x = top_x - nose_x
+        yaw_angle = np.arctan2(delta_y, delta_x) * 180 / np.pi  # 轉換為角度
+
+        # 將角度轉換為弧度
+        theta = np.radians(yaw_angle)
+
+        # 旋轉矩陣
+        rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
+                                    [np.sin(theta), np.cos(theta)]])
+
+        # 旋轉中心點
+        center_x, center_y = symbol_x, symbol_y
+
+        # 設定符號大小
+        size = 30
+        size2 = 10
+
+        # 定義水平線條的端點
+        line1_start = (symbol_x - size, symbol_y - 5 - size2 // 2)
+        line1_end = (symbol_x - size2, symbol_y - 5 - size2 // 2)
+
+        line2_start = (symbol_x + size2, symbol_y - 5 - size2 // 2)
+        line2_end = (symbol_x + size, symbol_y - 5 - size2 // 2)
+
+        line3_start = (symbol_x - size, symbol_y + 5 + size2 // 2)
+        line3_end = (symbol_x - size2, symbol_y + 5 + size2 // 2)
+
+        line4_start = (symbol_x + size2, symbol_y + 5 + size2 // 2)
+        line4_end = (symbol_x + size, symbol_y + 5 + size2 // 2)
+
+        # 旋轉並繪製
+        for start, end in [(line1_start, line1_end), (line2_start, line2_end), 
+                        (line3_start, line3_end), (line4_start, line4_end)]:
+            start_rot = np.dot(rotation_matrix, np.array([start[0] - center_x, start[1] - center_y])) + np.array([center_x, center_y])
+            end_rot = np.dot(rotation_matrix, np.array([end[0] - center_x, end[1] - center_y])) + np.array([center_x, center_y])
+            cv2.line(image, tuple(start_rot.astype(int)), tuple(end_rot.astype(int)), (255, 0, 0), 5)
+
+        # 定義垂直線條的端點
+        line5_start = (symbol_x - size2 // 2, symbol_y - size)
+        line5_end = (symbol_x - size2 // 2, symbol_y - size2)
+
+        line6_start = (symbol_x - size2 // 2, symbol_y + size2)
+        line6_end = (symbol_x - size2 // 2, symbol_y + size)
+
+        line7_start = (symbol_x + size2 // 2, symbol_y - size)
+        line7_end = (symbol_x + size2 // 2, symbol_y - size2)
+
+        line8_start = (symbol_x + size2 // 2, symbol_y + size2)
+        line8_end = (symbol_x + size2 // 2, symbol_y + size)
+
+        # 旋轉並繪製
+        for start, end in [(line5_start, line5_end), (line6_start, line6_end), 
+                        (line7_start, line7_end), (line8_start, line8_end)]:
+            start_rot = np.dot(rotation_matrix, np.array([start[0] - center_x, start[1] - center_y])) + np.array([center_x, center_y])
+            end_rot = np.dot(rotation_matrix, np.array([end[0] - center_x, end[1] - center_y])) + np.array([center_x, center_y])
+            cv2.line(image, tuple(start_rot.astype(int)), tuple(end_rot.astype(int)), (255, 0, 0), 5)
+        
+        return(image)
+
+    """ Surprise 驚訝特效"""
+    @staticmethod
+    def add_surprise_effect(image, face_landmarks):
+        H, W, _ = image.shape
+
+        # 取右側頭部上方的參考點，例如右耳位置（第234個特徵點）
+        right_head_point = face_landmarks.landmark[234]  # 右耳附近的一個特徵點
+        x = int(right_head_point.x * W)
+        y = int(right_head_point.y * H)
+
+        # 驚嘆號的中心位置
+        center_x = x - 50
+        center_y = y - 70
+
+        color = (255,226,0)  # 黃色 HEX #ffe200
+        line_thickness = 7
+
+        cv2.line(image, (center_x-20, center_y - 40), (center_x-20, center_y + 40), color, line_thickness)
+        circle_radius = 10
+        cv2.circle(image, (center_x-20, center_y + 60), circle_radius, color, -1)  # -1 代表填充顏色
+
+        # # 問號上方的圓弧部分
+        # start_angle = 0
+        # end_angle = 180
+        # radius = 30
+
+        # # 畫圓弧 (上方的彎曲部分)
+        # cv2.ellipse(image, (center_x, center_y), (radius, radius), 0, start_angle, end_angle, color, line_thickness)
+
+        # # 畫問號的垂直線部分
+        # cv2.line(image, (center_x, center_y + radius), (center_x, center_y + 2 * radius), color, line_thickness)
+
+        # # 問號的圓點部分（底部）
+        # circle_radius = 8
+        # cv2.circle(image, (center_x, center_y + 2 * radius + 20), circle_radius, color, -1)  # -1 代表填充顏色
+
+        return(image)
 
 
 # GUI
@@ -484,6 +606,10 @@ class GUI:
                 final_image = self.processor.add_tear_effect(final_image, face_landmarks)
             elif emotion == 'Happy':
                 final_image = self.processor.add_rainbow_effect(final_image, face_landmarks)
+            elif emotion == 'Angry':
+                final_image = self.processor.add_angry_effect(final_image, face_landmarks)
+            elif emotion == 'Surprise':
+                final_image = self.processor.add_surprise_effect(final_image, face_landmarks)
 
             """顯示處理後圖片"""
             final_image_pil = Image.fromarray(final_image)
