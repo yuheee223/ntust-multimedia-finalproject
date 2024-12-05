@@ -21,6 +21,8 @@ from keras.api.layers import BatchNormalization
 from keras.api.losses import categorical_crossentropy
 from keras.api.optimizers import Adam
 
+import random
+
 
 # for情緒識別
 class VGGNet(Sequential):
@@ -248,6 +250,9 @@ class ImageProcessor:
         brightness_factor = 0.7 # <1.0降低亮度；>1.0提高亮
         hsv_image[:, :, 2] = np.clip(hsv_image[:, :, 2] * brightness_factor, 0, 255).astype(np.uint8)
 
+        
+        print("change first")
+
         return cv2.cvtColor(hsv_image, cv2.COLOR_HSV2BGR)
     
     """""""""""""effect func"""""""""""""
@@ -408,6 +413,11 @@ class ImageProcessor:
         symbol_x = x - 20  # 向左偏移
         symbol_y = y - 50  # 向上偏移
 
+        # 引入隨機抖動
+        jitter_x = random.randint(-5, 5)  # 隨機抖動範圍
+        jitter_y = random.randint(-5, 5)
+        symbol_x += jitter_x
+        symbol_y += jitter_y
         
         # 計算鼻尖與頭頂的相對座標
         top_x = int(face_landmarks.landmark[10].x * W)
@@ -473,6 +483,32 @@ class ImageProcessor:
             start_rot = np.dot(rotation_matrix, np.array([start[0] - center_x, start[1] - center_y])) + np.array([center_x, center_y])
             end_rot = np.dot(rotation_matrix, np.array([end[0] - center_x, end[1] - center_y])) + np.array([center_x, center_y])
             cv2.line(image, tuple(start_rot.astype(int)), tuple(end_rot.astype(int)), (255, 0, 0), 5)
+
+        # 載入效果圖
+        effect_image = cv2.imread('img/effects/angry.jpg')
+        if effect_image is None:
+            print("Failed to read effect image")
+            exit()
+
+        effect_image = cv2.cvtColor(effect_image, cv2.COLOR_RGB2BGR)
+        # 調整效果圖大小
+        effect_resized = cv2.resize(effect_image, (image.shape[1], image.shape[0]))
+
+        # 將效果圖的白色背景移除
+        # 創建遮罩，篩選出非白色區域
+        eff_lower = np.array([0, 0, 0])  
+        eff_upper = np.array([255, 250, 250])  
+        eff_mask = cv2.inRange(effect_resized, eff_lower, eff_upper)
+
+        # 將效果圖的白色背景設定為透明
+        effect_no_bg = cv2.bitwise_and(effect_resized, effect_resized, mask=eff_mask)
+
+        alpha = 1  
+        beta = 0.4  
+        image = cv2.addWeighted(image, alpha, effect_no_bg, beta, 0)
+
+        print("add first")
+        
         
         return(image)
 
@@ -493,27 +529,103 @@ class ImageProcessor:
         color = (255,226,0)  # 黃色 HEX #ffe200
         line_thickness = 7
 
-        cv2.line(image, (center_x-20, center_y - 40), (center_x-20, center_y + 40), color, line_thickness)
+        cv2.line(image, (center_x-50, center_y - 40), (center_x-50, center_y + 40), color, line_thickness)
         circle_radius = 10
-        cv2.circle(image, (center_x-20, center_y + 60), circle_radius, color, -1)  # -1 代表填充顏色
+        cv2.circle(image, (center_x-50, center_y + 60), circle_radius, color, -1)  # -1 代表填充顏色
 
-        # # 問號上方的圓弧部分
-        # start_angle = 0
-        # end_angle = 180
-        # radius = 30
+        # 問號上方的圓弧部分
+        start_angle = -90
+        end_angle = 90
+        radius = 30
 
-        # # 畫圓弧 (上方的彎曲部分)
-        # cv2.ellipse(image, (center_x, center_y), (radius, radius), 0, start_angle, end_angle, color, line_thickness)
+        # 畫圓弧 (上方的彎曲部分)
+        cv2.ellipse(image, (center_x, center_y), (radius, radius), 0, start_angle, end_angle, color, line_thickness)
 
-        # # 畫問號的垂直線部分
-        # cv2.line(image, (center_x, center_y + radius), (center_x, center_y + 2 * radius), color, line_thickness)
+        # 畫問號的垂直線部分
+        cv2.line(image, (center_x, center_y + radius), (center_x, center_y + 2 * radius), color, line_thickness)
 
         # # 問號的圓點部分（底部）
-        # circle_radius = 8
-        # cv2.circle(image, (center_x, center_y + 2 * radius + 20), circle_radius, color, -1)  # -1 代表填充顏色
+        circle_radius = 10
+        cv2.circle(image, (center_x, center_y + 2 * radius + 20), circle_radius, color, -1)  # -1 代表填充顏色
+
+        # 載入效果圖
+        effect_image = cv2.imread('img/effects/surprise.jpg')
+        if effect_image is None:
+            print("Failed to read effect image")
+            exit()
+
+        # 調整效果圖大小
+        effect_resized = cv2.resize(effect_image, (image.shape[1], image.shape[0]))
+
+        # 將效果圖的白色背景移除
+        # 創建遮罩，篩選出非白色區域
+        eff_lower = np.array([0, 0, 0])  
+        eff_upper = np.array([180, 180, 180])  
+        eff_mask = cv2.inRange(effect_resized, eff_lower, eff_upper)
+
+        # 將效果圖的白色背景設定為透明
+        effect_no_bg = cv2.bitwise_and(effect_resized, effect_resized, mask=eff_mask)
+
+        alpha = 1  
+        beta = 0.7   
+        image = cv2.addWeighted(image, alpha, effect_no_bg, beta, 0)
 
         return(image)
+    
+    """ Disgust 噁心特效"""
+    @staticmethod
+    def add_vomit_effect(image, face_landmarks):
+        H, W, _ = image.shape
 
+        # 提取嘴巴中心點 (第 13 個特徵點)
+        mouth_x = int(face_landmarks.landmark[13].x * W)
+        mouth_y = int(face_landmarks.landmark[13].y * H)
+
+        # 提取嘴巴左右兩端的特徵點
+        left_mouth_x = int(face_landmarks.landmark[61].x * W)
+        right_mouth_x = int(face_landmarks.landmark[291].x * W)
+
+        # 計算嘴巴的寬度（兩端之間的距離）
+        mouth_width = right_mouth_x - left_mouth_x
+
+        # 嘔吐的顏色 (綠色)
+        color =  (15,130,7)  # HEX #0f8207
+        vomit_color =(30,92,22)  # HEX #1e5c16
+        thickness = int(mouth_width*0.4)  # 主流厚度
+        droplet_size = int(mouth_width * 0.1)  # 液滴的大小
+        droplet_count = 20  # 液滴的數量
+        
+        # 1. 繪製嘔吐主流
+        for i in range(1, 10):
+            # 每次偏移增加一些變化，模擬液體曲線
+            offset_x = int(np.random.uniform(-10, 10))
+            offset_y = i * 15  # 向下流動的距離
+            
+            # 主流從嘴巴位置開始
+            start_point = (mouth_x, mouth_y+40 + (i - 1) * 15)
+            end_point = (mouth_x + offset_x, mouth_y+40 + offset_y)
+            
+            # 繪製主流的線條
+            cv2.line(image, start_point, end_point, color, thickness)
+        
+        # 2. 在主流周圍添加隨機液滴
+        for _ in range(droplet_count):
+            # 隨機生成液滴的偏移位置
+            droplet_offset_x = int(np.random.uniform(-30, 30))
+            droplet_offset_y = int(np.random.uniform(10, 150))
+            
+            # 計算液滴的中心座標
+            droplet_center = (mouth_x + droplet_offset_x, mouth_y+40 + droplet_offset_y)
+            
+            # 畫出液滴
+            # cv2.circle(final_image, droplet_center, droplet_size, vomit_color, -1)
+            # 繪製內部顏色的圓形
+            border_thickness = 2       # 邊框的厚度
+            cv2.circle(image, droplet_center, droplet_size - border_thickness, color, -1)
+            # 繪製外部邊框顏色的圓形
+            cv2.circle(image, droplet_center, droplet_size, vomit_color, border_thickness)
+        
+        return image
 
 # GUI
 class GUI:
@@ -610,6 +722,9 @@ class GUI:
                 final_image = self.processor.add_angry_effect(final_image, face_landmarks)
             elif emotion == 'Surprise':
                 final_image = self.processor.add_surprise_effect(final_image, face_landmarks)
+            elif emotion == 'Disgust':
+                final_image = self.processor.add_vomit_effect(final_image, face_landmarks)
+
 
             """顯示處理後圖片"""
             final_image_pil = Image.fromarray(final_image)
