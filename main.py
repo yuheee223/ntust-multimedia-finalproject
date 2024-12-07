@@ -22,6 +22,7 @@ from keras.api.losses import categorical_crossentropy
 from keras.api.optimizers import Adam
 
 import random
+import math
 
 
 # for情緒識別
@@ -277,58 +278,31 @@ class ImageProcessor:
         width = int(left_eye_width * 0.1) 
         height = int(left_eye_width * 0.3) 
 
-        # 1. 畫出三角形（頂部為水滴的尖端）
-        triangle_points = np.array([[
-            (left_x, left_y+20),  # 頂部
-            (left_x - width, left_y + height),  # 左側底角
-            (left_x + width, left_y + height)  # 右側底角
-        ]], dtype=np.int32)
+        for (x, y) in [(left_x, left_y), (right_x, right_y)]:
+            # 畫三角形（頂部為水滴的尖端）
+            triangle_points = np.array([[
+                (x, y + 20),                # 頂部
+                (x - width, y + height),    # 左側底角
+                (x + width, y + height)     # 右側底角
+            ]], dtype=np.int32)
+            cv2.fillPoly(image, triangle_points, color=(0,55,174)) # HEX #0037ae
+            # cv2.polylines(final_image, triangle_points, isClosed=True, color=(0, 0, 255), thickness=2)
 
-        # 畫三角形
-        cv2.fillPoly(image, triangle_points, color=(0,55,174)) # HEX #0037ae
-        # cv2.polylines(final_image, triangle_points, isClosed=True, color=(0, 0, 255), thickness=2)
-
-        # 2. 畫出半圓形（底部）
-        cv2.ellipse(image, 
-                    (left_x, left_y + height),  # 半圓心
-                    (width, height // 2),       # 半圓的長短軸
-                    0,                          # 旋轉角度
-                    0,                          # 起始角度
-                    180,                        # 結束角度
-                    (0,55,174),                # 顏色：藍色
-                    -1)                         # 填充顏色
-        
-        transition_radius = 5  # 過渡圓形的半徑
-        transition_y = left_y + height - transition_radius  # 確保圓形位於兩個形狀之間的接縫處
-        cv2.circle(image, (left_x, transition_y), transition_radius, (0,55,174), -1)  # 過渡圓形
-
-        # 1. 畫出三角形（頂部為水滴的尖端）
-        triangle_points = np.array([[
-            (right_x, right_y+20),  # 頂部
-            (right_x - width, right_y + height),  # 左側底角
-            (right_x + width, right_y + height)  # 右側底角
-        ]], dtype=np.int32)
-
-        # 畫三角形
-        cv2.fillPoly(image, triangle_points, color=(0,55,174))
-        # cv2.polylines(final_image, triangle_points, isClosed=True, color=(0, 0, 255), thickness=2)
-
-        # 2. 畫出半圓形（底部）
-        cv2.ellipse(image, 
-                    (right_x, right_y + height),  # 半圓心
-                    (width, height // 2),       # 半圓的長短軸
-                    0,                          # 旋轉角度
-                    0,                          # 起始角度
-                    180,                        # 結束角度
-                    (0,55,174),                # 顏色：藍色
-                    -1)                         # 填充顏色
-        
-        transition_y = right_y + height - transition_radius  # 確保圓形位於兩個形狀之間的接縫處
-        cv2.circle(image, (right_x, transition_y), transition_radius, (0,55,174), -1)  # 過渡圓形
-
+            # 畫半圓形（底部）
+            cv2.ellipse(image, 
+                        (x, y + height),        # 半圓心
+                        (width, height // 2),   # 半圓的長短軸
+                        0,                      # 旋轉角度
+                        0,                      # 起始角度
+                        180,                    # 結束角度
+                        (0,55,174),             # 顏色：藍色
+                        -1)                     # 填充顏色         
+            transition_radius = 5  # 過渡圓形的半徑
+            transition_y = y + height - transition_radius  # 確保圓形位於兩個形狀之間的接縫處
+            cv2.circle(image, (x, transition_y), transition_radius, (0,55,174), -1)  # 過渡圓形
 
         return image
- 
+    
     """ Happy 彩虹特效"""
     @staticmethod
     def add_rainbow_effect(image, face_landmarks):
@@ -346,7 +320,7 @@ class ImageProcessor:
         delta_y = top_y - nose_y
         delta_x = top_x - nose_x
         yaw_angle = np.arctan2(delta_y, delta_x) * 180 / np.pi  # 轉換為角度
-        print(yaw_angle)
+        # print(yaw_angle)
     
         left_eye_center = face_landmarks.landmark[33]   # 左眼中央
         right_eye_center = face_landmarks.landmark[263] # 右眼中央
@@ -355,8 +329,9 @@ class ImageProcessor:
 
         # 在頭頂上方畫彩虹
         face_width = abs(right_x - left_x)
-        rainbow_radius = int(face_width * 1.5) # 彩虹的半徑
-        rainbow_height = int(rainbow_radius*0.1)  # 彩虹的間隔高度
+        rainbow_center = (top_x, top_y - 40)    # 彩虹的中心（頂部稍微向上偏移）
+        rainbow_radius = int(face_width * 1.5)  # 彩虹的半徑
+        rainbow_thickness = int(rainbow_radius*0.075)  # 彩虹的厚度
         rainbow_colors = [(255, 0, 0), (255, 127, 0), (255, 255, 0), (0, 255, 0), (0, 0, 255), (75, 0, 130), (148, 0, 211)]  # 紅、橙、黃、綠、藍、靛、紫
 
         # rainbow_colors = [
@@ -369,9 +344,9 @@ class ImageProcessor:
         #     (148, 0, 211, 200)  # 紫色，半透明
         # ]
 
+        
         # # 創建一個全透明的圖層來繪製彩虹
         # rainbow_layer = np.zeros_like(image)  # 全透明圖層，與 final_image 相同的大小
-
 
         # 繪製彩虹的半圓
         for i, color in enumerate(rainbow_colors):
@@ -380,25 +355,51 @@ class ImageProcessor:
             angle_end = 360
 
             # 計算每個半圓的半徑（每個顏色的半圓逐漸變小）
-            radius = rainbow_radius - i * rainbow_height
+            radius = rainbow_radius - i * rainbow_thickness
             
             # 調整圓形的繪製方式，使其顏色從上至下
             cv2.ellipse(image, 
-                        (top_x, top_y - 40),  # 半圓的中心（頂部稍微向上偏移）
-                        (radius, radius),         # 半徑
-                        yaw_angle+90,                 # 旋轉角度
-                        angle_start,               # 起始角度 
-                        angle_end,                 # 結束角度
-                        color,                     # 顏色
-                        -1)                        # 填充顏色
+                        rainbow_center,         # 半圓的中心（頂部稍微向上偏移）
+                        (radius, radius),       # 半徑
+                        yaw_angle + 90,         # 旋轉角度
+                        angle_start,            # 起始角度 
+                        angle_end,              # 結束角度
+                        color,                  # 顏色
+                        rainbow_thickness)      # 填充顏色
             
+
+        # 繪製雲朵
+        cloud_color = (255, 255, 255)  # 雲朵的顏色
+        cloud_center_x_offset = rainbow_radius - rainbow_thickness * 3
+        cloud_radius = rainbow_thickness * 2
+        cloud_LR_offset = rainbow_thickness * 5 // 2    # 左右的雲朵x軸移動距離
+        cloud_UD_offset = cloud_LR_offset * 2 // 5      # 上下的雲朵x軸移動距離
+        cloud_circle_positions = [
+            (-cloud_LR_offset, 0),                  # 雲朵左邊的圓
+            (-cloud_UD_offset, -cloud_UD_offset),   # 雲朵下左的圓
+            (cloud_UD_offset, -cloud_UD_offset),    # 雲朵下右的圓
+            (cloud_LR_offset, 0),                   # 雲朵右邊的圓
+            (-cloud_UD_offset, cloud_UD_offset),    # 雲朵上左的圓
+            (cloud_UD_offset, cloud_UD_offset)      # 雲朵上右的圓
+        ]
+        rad_angle = math.radians(yaw_angle + 90)
+
+        for offset_x, offset_y in cloud_circle_positions:
+            relative_y = offset_y
+            for direction in [1, -1]:   # 1為右邊的雲；-1為左邊的雲
+                relative_x = direction * cloud_center_x_offset + offset_x
+                rotated_x = relative_x * math.cos(rad_angle) - relative_y * math.sin(rad_angle)
+                rotated_y = relative_x * math.sin(rad_angle) + relative_y * math.cos(rad_angle)
+                center_x = rainbow_center[0] + int(rotated_x)
+                center_y = rainbow_center[1] + int(rotated_y)
+                cv2.circle(image, (center_x, center_y), cloud_radius, cloud_color, -1)
+
         # 合併原圖和彩虹圖層
         # final_image_with_rainbow = cv2.add(image, rainbow_layer)
         # return final_image_with_rainbow
 
         return image
     
-     
     """ Angry 怒氣特效"""
     @staticmethod
     def add_angry_effect(image, face_landmarks):
@@ -588,43 +589,103 @@ class ImageProcessor:
         # 計算嘴巴的寬度（兩端之間的距離）
         mouth_width = right_mouth_x - left_mouth_x
 
-        # 嘔吐的顏色 (綠色)
-        color =  (15,130,7)  # HEX #0f8207
-        vomit_color =(30,92,22)  # HEX #1e5c16
-        thickness = int(mouth_width*0.4)  # 主流厚度
-        droplet_size = int(mouth_width * 0.1)  # 液滴的大小
-        droplet_count = 20  # 液滴的數量
+        # # 嘔吐的顏色 (綠色)
+        # color =  (15,130,7)  # HEX #0f8207
+        # vomit_color =(30,92,22)  # HEX #1e5c16
+        # thickness = int(mouth_width*0.4)  # 主流厚度
+        # droplet_size = int(mouth_width * 0.1)  # 液滴的大小
+        # droplet_count = 20  # 液滴的數量
         
-        # 1. 繪製嘔吐主流
-        for i in range(1, 10):
-            # 每次偏移增加一些變化，模擬液體曲線
-            offset_x = int(np.random.uniform(-10, 10))
-            offset_y = i * 15  # 向下流動的距離
+        # # 1. 繪製嘔吐主流
+        # for i in range(1, 10):
+        #     # 每次偏移增加一些變化，模擬液體曲線
+        #     offset_x = int(np.random.uniform(-10, 10))
+        #     offset_y = i * 15  # 向下流動的距離
             
-            # 主流從嘴巴位置開始
-            start_point = (mouth_x, mouth_y+40 + (i - 1) * 15)
-            end_point = (mouth_x + offset_x, mouth_y+40 + offset_y)
+        #     # 主流從嘴巴位置開始
+        #     start_point = (mouth_x, mouth_y+40 + (i - 1) * 15)
+        #     end_point = (mouth_x + offset_x, mouth_y+40 + offset_y)
             
-            # 繪製主流的線條
-            cv2.line(image, start_point, end_point, color, thickness)
+        #     # 繪製主流的線條
+        #     cv2.line(image, start_point, end_point, color, thickness)
         
-        # 2. 在主流周圍添加隨機液滴
-        for _ in range(droplet_count):
-            # 隨機生成液滴的偏移位置
-            droplet_offset_x = int(np.random.uniform(-30, 30))
-            droplet_offset_y = int(np.random.uniform(10, 150))
+        # # 2. 在主流周圍添加隨機液滴
+        # for _ in range(droplet_count):
+        #     # 隨機生成液滴的偏移位置
+        #     droplet_offset_x = int(np.random.uniform(-30, 30))
+        #     droplet_offset_y = int(np.random.uniform(10, 150))
             
-            # 計算液滴的中心座標
-            droplet_center = (mouth_x + droplet_offset_x, mouth_y+40 + droplet_offset_y)
+        #     # 計算液滴的中心座標
+        #     droplet_center = (mouth_x + droplet_offset_x, mouth_y+40 + droplet_offset_y)
             
-            # 畫出液滴
-            # cv2.circle(final_image, droplet_center, droplet_size, vomit_color, -1)
-            # 繪製內部顏色的圓形
-            border_thickness = 2       # 邊框的厚度
-            cv2.circle(image, droplet_center, droplet_size - border_thickness, color, -1)
-            # 繪製外部邊框顏色的圓形
-            cv2.circle(image, droplet_center, droplet_size, vomit_color, border_thickness)
-        
+        #     # 畫出液滴
+        #     # cv2.circle(final_image, droplet_center, droplet_size, vomit_color, -1)
+        #     # 繪製內部顏色的圓形
+        #     border_thickness = 2       # 邊框的厚度
+        #     cv2.circle(image, droplet_center, droplet_size - border_thickness, color, -1)
+        #     # 繪製外部邊框顏色的圓形
+        #     cv2.circle(image, droplet_center, droplet_size, vomit_color, border_thickness)
+
+
+        # 載入效果圖
+        effect_image = cv2.imread('img/effects/disgust.jpg') 
+        if effect_image is None:
+            print("Failed to read effect image")
+            exit()
+
+        # 確保顏色格式為 BGR (OpenCV 默認使用 BGR)
+        effect_image = cv2.cvtColor(effect_image, cv2.COLOR_RGB2BGR)
+
+        # 取得圖片的寬度和高度
+        image_height, image_width = effect_image.shape[:2]
+
+        # 計算縮放比例
+        target_width = int(mouth_width * 0.7)
+        scale_factor = target_width / image_width
+
+        # 根據縮放比例計算目標高度，保持等比縮放
+        target_height = int(image_height * scale_factor)
+
+        # 使用 cv2.resize() 進行等比縮放
+        effect_resized = cv2.resize(effect_image, (target_width, target_height))
+
+        # 創建遮罩，篩選出黑色區域 (黑色範圍：0到10)
+        eff_lower = np.array([0, 0, 0])  # 黑色的下限
+        eff_upper = np.array([10, 10, 5])  # 黑色的上限
+        eff_mask = cv2.inRange(effect_resized, eff_lower, eff_upper)
+
+        # 將黑色背景設定為透明
+        effect_no_bg = cv2.bitwise_and(effect_resized, effect_resized, mask=~eff_mask)  # 反轉遮罩來選取非黑色區域
+
+        # tmp = cv2.cvtColor(effect_resized,cv2.COLOR_BGR2GRAY)
+        # _,alpha = cv2.threshold(tmp, 0,255,cv2.THRESH_BINARY)
+        # b,g,r = cv2.split(effect_resized)
+        # rgba = [b,g,r,alpha]
+        # # effect_no_bg = cv2.merge(rgba,4)
+        # dst = cv2.merge(rgba,4)
+
+
+        # 計算效果圖的位置：將效果圖放在嘴巴中心下方20的位置
+        effect_x = mouth_x - effect_no_bg.shape[1] // 2  # 讓效果圖居中於嘴巴
+        effect_y = mouth_y   # 位於嘴巴下方20像素
+
+        # print(effect_x)
+        # print(effect_y)
+
+        # # 確保效果圖不超出圖像邊界
+        effect_x = max(0, min(effect_x, image.shape[1] - effect_no_bg.shape[1]))
+        effect_y = max(0, min(effect_y, image.shape[0] - effect_no_bg.shape[0]))
+
+        # for i in range(effect_no_bg.shape[0]):
+        #     for j in range(effect_no_bg.shape[1]):
+        #         # 直接將效果圖的像素加到原圖的對應位置
+        #         image[effect_y + i, effect_x + j] = cv2.add(image[effect_y + i, effect_x + j], effect_no_bg[i, j])
+
+        image[effect_y:effect_y + effect_no_bg.shape[0], effect_x:effect_x + effect_no_bg.shape[1]] = cv2.add(
+            image[effect_y:effect_y + effect_no_bg.shape[0], effect_x:effect_x + effect_no_bg.shape[1]],
+            effect_no_bg
+        )
+
         return image
 
 # GUI
